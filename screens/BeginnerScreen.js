@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,38 +9,39 @@ import {
   Image,
   Modal,
 } from "react-native";
+//import { saveScoreToFirebase } from './firebaseHelper';
+
+// Naya import
+import { saveScoreToFirebase, storeGameScore } from '../firebase/FirebaseHelper';
 import { useNavigation } from "@react-navigation/native";
-import { Audio } from "expo-av";
-import { db, auth } from '../firebase/firebase';
-import { saveScoreToFirebase } from '../firebase/FirebaseHelper';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+//import { saveScoreToFirebase } from "../firebase/FirebaseHelper";
 
 const { width, height } = Dimensions.get("window");
 const LANES = [width * 0.2, width * 0.5, width * 0.8];
 
-// Beginner Level: Focus on identifying SHORT vowel sounds
+// Beginner Level Words
 const WORDS = [
-  { word: "cat", isCorrect: true },      // Short A
-  { word: "sit", isCorrect: true },      // Short I
-  { word: "pot", isCorrect: true },      // Short O
-  { word: "cup", isCorrect: true },      // Short U
-  { word: "bed", isCorrect: true },      // Short E
-  { word: "bag", isCorrect: true },      // Short A
-  { word: "log", isCorrect: true },      // Short O
-  { word: "fin", isCorrect: true },      // Short I
-  { word: "bus", isCorrect: true },      // Short U
-  { word: "pen", isCorrect: true },      // Short E
-  
-  { word: "cake", isCorrect: false },    // Long A
-  { word: "kite", isCorrect: false },    // Long I
-  { word: "rope", isCorrect: false },    // Long O
-  { word: "cube", isCorrect: false },    // Long U
-  { word: "team", isCorrect: false },    // Long E
-  { word: "rain", isCorrect: false },    // Long A
-  { word: "boat", isCorrect: false },    // Long O
-  { word: "seed", isCorrect: false },    // Long E
-  { word: "bike", isCorrect: false },    // Long I
-  { word: "mule", isCorrect: false },    // Long U
+  { word: "cat", isCorrect: true },
+  { word: "sit", isCorrect: true },
+  { word: "pot", isCorrect: true },
+  { word: "cup", isCorrect: true },
+  { word: "bed", isCorrect: true },
+  { word: "bag", isCorrect: true },
+  { word: "log", isCorrect: true },
+  { word: "fin", isCorrect: true },
+  { word: "bus", isCorrect: true },
+  { word: "pen", isCorrect: true },
+
+  { word: "cake", isCorrect: false },
+  { word: "kite", isCorrect: false },
+  { word: "rope", isCorrect: false },
+  { word: "cube", isCorrect: false },
+  { word: "team", isCorrect: false },
+  { word: "rain", isCorrect: false },
+  { word: "boat", isCorrect: false },
+  { word: "seed", isCorrect: false },
+  { word: "bike", isCorrect: false },
+  { word: "mule", isCorrect: false },
 ];
 
 export default function BeginnerVowelGame() {
@@ -57,95 +58,93 @@ export default function BeginnerVowelGame() {
   const [isGameOver, setIsGameOver] = useState(false);
   const [scoreSaved, setScoreSaved] = useState(false);
   const [instructionsVisible, setInstructionsVisible] = useState(true);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [gameCompleted, setGameCompleted] = useState(false);
 
-  // Game over hone par score save karein
+  // ✅ Track correct/incorrect selections
+  const [shortWordsCaught, setShortWordsCaught] = useState(0);
+  const [longWordsCaught, setLongWordsCaught] = useState(0);
+
+  // Save score only when the game truly ends
   useEffect(() => {
-    if (isGameOver && !scoreSaved) {
+    if (gameCompleted && isGameOver && !scoreSaved) {
+      // ✅ Game name aur level ke saath save karein
       saveScoreToFirebase(score, "beginner")
-        .then(() => {
-          console.log("Beginner level score saved successfully");
-          setScoreSaved(true);
-        })
-        .catch(error => {
-          console.error("Failed to save score:", error);
-        });
+        .then(() => setScoreSaved(true))
+        .catch((err) => console.error("Score save error:", err));
+      
+      // ✅ Alternative: storeGameScore use karna hai toh
+      // storeGameScore("vowels", "beginner", {
+      //   score: score,
+      //   totalQuestions: shortWordsCaught + longWordsCaught,
+      //   correctAnswers: shortWordsCaught,
+      //   wrongAnswers: longWordsCaught
+      // })
+      // .then(() => setScoreSaved(true))
+      // .catch((err) => console.error("Score save error:", err));
     }
-  }, [isGameOver, scoreSaved]);
+  }, [gameCompleted, isGameOver, scoreSaved, score, shortWordsCaught, longWordsCaught]);
 
   // Spawn falling words
   useEffect(() => {
-    if (isPaused || isGameOver) return;
+    if (!gameStarted || isPaused || isGameOver) return;
     const interval = setInterval(() => {
-      const availableWords = WORDS.filter(
-        (_, idx) => !usedWordIds.has(idx)
-      );
-
+      const availableWords = WORDS.filter((_, idx) => !usedWordIds.has(idx));
       if (availableWords.length === 0) {
         setUsedWordIds(new Set());
         return;
       }
-
       const randomIndex = Math.floor(Math.random() * availableWords.length);
       const chosenWord = availableWords[randomIndex];
       const wordIndex = WORDS.findIndex((w) => w.word === chosenWord.word);
 
       setUsedWordIds((prev) => new Set([...prev, wordIndex]));
-
       const randomLane = Math.floor(Math.random() * 3);
       setFallingWords((prev) => [
         ...prev,
-        {
-          ...chosenWord,
-          lane: randomLane,
-          y: 0,
-          id: Date.now(),
-          hit: false,
-        },
+        { ...chosenWord, lane: randomLane, y: 0, id: Date.now(), hit: false },
       ]);
-    }, 1500); // Slower than intermediate level
-
+    }, 1500);
     return () => clearInterval(interval);
-  }, [isPaused, usedWordIds, isGameOver]);
+  }, [gameStarted, isPaused, isGameOver, usedWordIds]);
 
   // Move words down
   useEffect(() => {
-    if (isPaused || isGameOver) return;
-    const gameLoop = setInterval(() => {
+    if (!gameStarted || isPaused || isGameOver) return;
+    const loop = setInterval(() => {
       setFallingWords((prev) =>
         prev
-          .map((w) => ({ ...w, y: w.y + 8 })) // Slower falling speed
+          .map((w) => ({ ...w, y: w.y + 8 }))
           .filter((w) => w.y < height - 150)
       );
-    }, 120); // Slower movement
-
-    return () => clearInterval(gameLoop);
-  }, [isPaused, isGameOver]);
+    }, 120);
+    return () => clearInterval(loop);
+  }, [gameStarted, isPaused, isGameOver]);
 
   // Collision detection
   useEffect(() => {
-    if (isPaused || isGameOver) return;
+    if (!gameStarted || isPaused || isGameOver) return;
     fallingWords.forEach((word) => {
       if (word.y > height - 250 && word.lane === playerLane && !word.hit) {
         if (word.isCorrect) {
-          setScore((s) => s + 5); // Fewer points for beginner level
+          setScore((s) => s + 5);
+          setShortWordsCaught((c) => c + 1);
           showFloatingText("+5", "lime", word.lane);
         } else {
-          setScore((s) => Math.max(0, s - 5)); // Less penalty for wrong answers
+          setScore((s) => Math.max(0, s - 5));
+          setLongWordsCaught((c) => c + 1);
           showFloatingText("-5", "red", word.lane);
         }
-
         setFallingWords((prev) =>
           prev.map((w) => (w.id === word.id ? { ...w, hit: true } : w))
         );
-
         setTimeout(() => {
           setFallingWords((prev) => prev.filter((w) => w.id !== word.id));
         }, 300);
       }
     });
-  }, [fallingWords, isPaused, isGameOver]);
+  }, [fallingWords, playerLane, gameStarted, isPaused, isGameOver]);
 
-  // Floating score text
   const showFloatingText = (text, color, lane) => {
     const id = Date.now();
     setFloatingTexts((prev) => [
@@ -157,45 +156,44 @@ export default function BeginnerVowelGame() {
     }, 600);
   };
 
-  // Timer logic
+  // Timer logic - Fixed to only end game when timeLeft reaches 0
   useEffect(() => {
-    if (isPaused || isGameOver) return;
-    if (timeLeft <= 0) {
-      setIsGameOver(true);
-      return;
-    }
-
+    if (!gameStarted || isPaused || isGameOver) return;
+    
     const timer = setInterval(() => {
-      setTimeLeft((t) => t - 1);
+      setTimeLeft((prevTime) => {
+        if (prevTime <= 1) {
+          clearInterval(timer);
+          setIsGameOver(true);
+          setGameCompleted(true);
+          return 0;
+        }
+        return prevTime - 1;
+      });
     }, 1000);
-
+    
     return () => clearInterval(timer);
-  }, [timeLeft, isPaused, isGameOver]);
+  }, [gameStarted, isPaused, isGameOver]);
 
-  // Handle pause
   const handlePause = () => {
     setIsPaused(true);
     setShowPauseMenu(true);
   };
 
-  // Handle resume with countdown
   const handleResume = () => {
     setShowPauseMenu(false);
     let count = 3;
     setCountdown(count);
-    const interval = setInterval(() => {
+    const intv = setInterval(() => {
       count--;
       if (count === 0) {
-        clearInterval(interval);
+        clearInterval(intv);
         setCountdown(null);
         setIsPaused(false);
-      } else {
-        setCountdown(count);
-      }
+      } else setCountdown(count);
     }, 1000);
   };
 
-  // Restart game
   const handlePlayAgain = () => {
     setIsGameOver(false);
     setScore(0);
@@ -203,17 +201,37 @@ export default function BeginnerVowelGame() {
     setFallingWords([]);
     setUsedWordIds(new Set());
     setScoreSaved(false);
+    setShortWordsCaught(0);
+    setLongWordsCaught(0);
+    setGameStarted(true);
+    setGameCompleted(false);
   };
 
-  // Navigate to Home
   const handleBack = () => {
-    navigation.navigate("Game"); 
+    setIsGameOver(false);
+    setGameStarted(false);
+    setGameCompleted(false);
+    setScore(0);
+    setTimeLeft(60);
+    setFallingWords([]);
+    setUsedWordIds(new Set());
+    setScoreSaved(false);
+    setShortWordsCaught(0);
+    setLongWordsCaught(0);
+    setInstructionsVisible(true);
+    navigation.navigate("Game");
   };
 
-  // Start game after instructions
   const startGame = () => {
     setInstructionsVisible(false);
+    setGameStarted(true);
   };
+
+  // ✅ Practice suggestion logic
+  const practiceMessage =
+    longWordsCaught > shortWordsCaught / 2
+      ? "⚠️ Needs more practice with short vowels!"
+      : "✅ Great job! Keep practicing to improve!";
 
   return (
     <ImageBackground
@@ -223,31 +241,34 @@ export default function BeginnerVowelGame() {
       style={styles.container}
       resizeMode="cover"
     >
-      {/* Instructions Modal */}
+      {/* Instructions */}
       <Modal visible={instructionsVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.instructionsBox}>
-            <Text style={styles.instructionsTitle}>Beginner Level</Text>
-            <Text style={styles.instructionsSubtitle}>Short Vowel Sounds</Text>
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={() => navigation.navigate("Game")}
+            >
+              <Text style={styles.backButtonText}>⬅️</Text>
+            </TouchableOpacity>
             
-            <View style={styles.instructionsContent}>
-              <Text style={styles.instructionsText}>
-                🎯 <Text style={styles.bold}>Goal:</Text> Catch words with SHORT vowel sounds
-              </Text>
-              <Text style={styles.instructionsText}>
-                ✅ <Text style={styles.bold}>Correct:</Text> cat, sit, pot, cup, bed
-              </Text>
-              <Text style={styles.instructionsText}>
-                ❌ <Text style={styles.bold}>Avoid:</Text> cake, kite, rope, team, rain
-              </Text>
-              <Text style={styles.instructionsText}>
-                ⭐ <Text style={styles.bold}>Scoring:</Text> +5 points for correct words
-              </Text>
-              <Text style={styles.instructionsText}>
-                ⚠️ <Text style={styles.bold}>Penalty:</Text> -5 points for wrong words
-              </Text>
-            </View>
-
+            {/* ✅ Game Name aur Level Display */}
+            <Text style={styles.gameName}>WORD OBSTACLE GAME</Text>
+            <Text style={styles.levelBadge}>BEGINNER LEVEL</Text>
+            
+            <Text style={styles.instructionsSubtitle}>Short Vowel Sounds</Text>
+            <Text style={styles.instructionsText}>
+              🎯 Goal: Catch words with SHORT vowel sounds
+            </Text>
+            <Text style={styles.instructionsText}>
+              ✅ Correct: cat, sit, pot, cup, bed
+            </Text>
+            <Text style={styles.instructionsText}>
+              ❌ Avoid: cake, kite, rope, team, rain
+            </Text>
+            <Text style={styles.instructionsText}>
+              ⭐ +5 for correct, -5 for wrong
+            </Text>
             <TouchableOpacity style={styles.startGameBtn} onPress={startGame}>
               <Text style={styles.startGameText}>Start Game</Text>
             </TouchableOpacity>
@@ -255,19 +276,36 @@ export default function BeginnerVowelGame() {
         </View>
       </Modal>
 
-      {/* Score + Pause Button + Timer */}
-      {!isGameOver && !instructionsVisible && (
+      {/* ✅ Game Name aur Level Display During Gameplay */}
+      {gameStarted && !isGameOver && (
+        <View style={styles.gameHeader}>
+          <Text style={styles.gameHeaderTitle}>WORD OBSTACLE GAME</Text>
+          <Text style={styles.gameHeaderLevel}>BEGINNER LEVEL</Text>
+        </View>
+      )}
+
+      {/* Score + Timer + Pause */}
+      {gameStarted && !isGameOver && (
         <View style={styles.topBar}>
-          <Text style={styles.score}>Score: {score}</Text>
-          <Text style={styles.timer}>⏳ {timeLeft}s</Text>
+          <View style={styles.scoreContainer}>
+            <Text style={styles.score}>Score: {score}</Text>
+          </View>
+          <View style={styles.timerContainer}>
+            <View style={styles.timerCircle}>
+              <Text style={styles.timerText}>{timeLeft}</Text>
+            </View>
+            <Text style={styles.timerLabel}>SECONDS</Text>
+          </View>
           <TouchableOpacity style={styles.pauseBtn} onPress={handlePause}>
             <Text style={{ fontSize: 26, color: "#fff" }}>⏸️</Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
         </View>
       )}
 
       {/* Falling words */}
-      {!isGameOver && !instructionsVisible &&
+      {gameStarted &&
+        !isPaused &&
+        !isGameOver &&
         fallingWords.map((word) => (
           <View
             key={word.id}
@@ -278,27 +316,22 @@ export default function BeginnerVowelGame() {
               alignItems: "center",
             }}
           >
-            <Image
-              source={{
-                uri: "https://sdmntprsouthcentralus.oaiusercontent.com/files/00000000-8a8c-61f7-b446-c733852af1ef/raw?se=2025-08-25T14%3A35%3A20Z&sp=r&sv=2024-08-04&sr=b&scid=a9a458c0-317a-5f2e-abd8-c71a8e57f257&skoid=ec8eb293-a61a-47e0-abd0-6051cc94b050&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2025-08-24T18%3A26%3A52Z&ske=2025-08-25T18%3A26%3A52Z&sks=b&skv=2024-08-04&sig=JFV/rs2k8d%2BlDWlOfy/cEy%2BrYfC/51T1XERpZkxnlAE%3D",
-              }}
-              style={styles.asteroid}
-            />
+            
+           <Image
+  source={require('../assets/a.png')}   // ✅ correct way
+  style={styles.asteroid}
+/>
             <Text style={styles.wordText}>{word.word}</Text>
           </View>
         ))}
 
-      {/* Floating texts */}
+      {/* Floating score text */}
       {floatingTexts.map((t) => (
         <Text
           key={t.id}
           style={[
             styles.floatingText,
-            {
-              left: LANES[t.lane] - 20,
-              top: t.y,
-              color: t.color,
-            },
+            { left: LANES[t.lane] - 20, top: t.y, color: t.color },
           ]}
         >
           {t.text}
@@ -306,7 +339,7 @@ export default function BeginnerVowelGame() {
       ))}
 
       {/* Player */}
-      {!isGameOver && !instructionsVisible && (
+      {gameStarted && !isGameOver && (
         <Text
           style={[
             styles.player,
@@ -318,7 +351,7 @@ export default function BeginnerVowelGame() {
       )}
 
       {/* Controls */}
-      {!isGameOver && !instructionsVisible && (
+      {gameStarted && !isPaused && !isGameOver && (
         <View style={styles.controls}>
           <TouchableOpacity
             onPress={() => setPlayerLane(Math.max(0, playerLane - 1))}
@@ -341,11 +374,14 @@ export default function BeginnerVowelGame() {
           <View style={styles.pauseBox}>
             <Text style={styles.pauseIcon}>⏸️</Text>
             <Text style={styles.pauseTitle}>Game Paused</Text>
-
+            
+            {/* ✅ Game Name aur Level Display in Pause Menu */}
+            <Text style={styles.pauseGameName}>WORD OBSTACLE GAME</Text>
+            <Text style={styles.pauseLevel}>Beginner Level</Text>
+            
             <TouchableOpacity style={styles.pauseBtnStyled} onPress={handleResume}>
               <Text style={styles.pauseBtnText}>▶️ Resume</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={[styles.pauseBtnStyled, { backgroundColor: "tomato" }]}
               onPress={handleBack}
@@ -356,14 +392,25 @@ export default function BeginnerVowelGame() {
         </View>
       </Modal>
 
-      {/* Game Over Screen */}
-      <Modal visible={isGameOver} transparent animationType="slide">
+      {/* ✅ Game Over Screen - Only shows when time is up */}
+      <Modal visible={isGameOver && timeLeft === 0} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
+            
+            {/* ✅ Game Name aur Level Display in Game Over */}
+            <Text style={styles.gameName}>WORD OBSTACLE GAME</Text>
+            <Text style={styles.levelBadge}>BEGINNER LEVEL</Text>
+            
             <Text style={styles.modalTitle}>⏰ Time's Up!</Text>
-            <Text style={{ fontSize: 20, color: "#fff", marginBottom: 20 }}>
-              Your Score: {score}
+            <Text style={styles.gameOverText}>Score: {score}</Text>
+            <Text style={styles.gameOverText}>
+              Short Vowel Words: {shortWordsCaught}
             </Text>
+            <Text style={styles.gameOverText}>
+              Long Vowel Words: {longWordsCaught}
+            </Text>
+            <Text style={styles.practiceText}>{practiceMessage}</Text>
+
             <TouchableOpacity style={styles.modalBtn} onPress={handlePlayAgain}>
               <Text style={styles.modalBtnText}>Play Again</Text>
             </TouchableOpacity>
@@ -389,53 +436,133 @@ export default function BeginnerVowelGame() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
-
+  
+  // ✅ New styles for game name and level display
+  gameHeader: {
+    position: "absolute",
+    top: 10,
+    width: "100%",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  gameHeaderTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FFD700",
+    textShadowColor: "rgba(0, 0, 0, 0.8)",
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+    marginBottom: 5,
+  },
+  gameHeaderLevel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#4CAF50",
+    textShadowColor: "rgba(0, 0, 0, 0.8)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  gameName: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#FFD700",
+    textAlign: "center",
+    marginBottom: 10,
+    textShadowColor: "rgba(0, 0, 0, 0.8)",
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
+  },
+  levelBadge: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#4CAF50",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 15,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginBottom: 15,
+    textShadowColor: "rgba(0, 0, 0, 0.5)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  pauseGameName: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#FFD700",
+    marginBottom: 5,
+  },
+  pauseLevel: {
+    fontSize: 14,
+    color: "#4CAF50",
+    marginBottom: 20,
+  },
+  
   topBar: {
     position: "absolute",
-    top: 34,
+    top: 60, // Increased top margin to make space for game header
     width: "100%",
     flexDirection: "row",
-    justifyContent: "center",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 10,
+    paddingHorizontal: 20,
   },
-
+  scoreContainer: {
+    backgroundColor: "rgba(110, 104, 104, 0.8)",
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    minWidth: 120,
+  },
   score: {
     fontSize: 20,
     fontWeight: "bold",
     color: "#fff",
-    backgroundColor: "#6e6868ff",
-    borderRadius: 20,
-    paddingVertical: 4,
     textAlign: "center",
-    width: 140,
-    marginRight: 10,
   },
-
-  timer: {
-    fontSize: 20,
+  timerContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timerCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "rgba(255, 0, 0, 0.7)",
+    borderWidth: 3,
+    borderColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.8,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  timerText: {
+    fontSize: 24,
     fontWeight: "bold",
-    color: "yellow",
-    backgroundColor: "#333",
-    borderRadius: 20,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
+    color: "#fff",
   },
-
+  timerLabel: {
+    fontSize: 12,
+    color: "#fff",
+    fontWeight: "bold",
+    marginTop: 4,
+    textShadowColor: "rgba(0, 0, 0, 0.8)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
   pauseBtn: {
-    marginLeft: 10,
-    backgroundColor: "#444",
+    backgroundColor: "rgba(68, 68, 68, 0.8)",
     padding: 11,
     borderRadius: 10,
   },
-
   asteroid: {
-    width: 100,
-    height: 100,
+    width: 110,
+    height: 90,
     resizeMode: "contain",
     backgroundColor: "transparent",
   },
-
   wordText: {
     position: "absolute",
     top: 25,
@@ -443,18 +570,15 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: "#fbfbfbff",
     textAlign: "center",
-    width: 80,
+    width: 70,
   },
-
-  player: { position: "absolute", fontSize: 60 },
-
+  player: { position: "absolute", fontSize: 70 },
   floatingText: {
     position: "absolute",
     fontSize: 22,
     fontWeight: "bold",
     textAlign: "center",
   },
-
   controls: {
     position: "absolute",
     bottom: 20,
@@ -463,19 +587,12 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingHorizontal: 40,
   },
-
   btn: {
     padding: 18,
     borderRadius: 50,
     elevation: 5,
-    shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    shadowOffset: { width: 2, height: 2 },
   },
-
   btnText: { fontSize: 28, color: "#fff" },
-
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",
@@ -489,17 +606,24 @@ const styles = StyleSheet.create({
     width: "90%",
     maxWidth: 400,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 10,
+    position: 'relative',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    padding: 10,
+    zIndex: 1,
+  },
+  backButtonText: {
+    fontSize: 24,
   },
   instructionsTitle: {
     fontSize: 28,
     fontWeight: "bold",
     color: "#4CAF50",
     marginBottom: 5,
-    textAlign: "center",
+    marginTop: 10,
   },
   instructionsSubtitle: {
     fontSize: 20,
@@ -507,18 +631,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     fontWeight: "600",
   },
-  instructionsContent: {
-    marginBottom: 25,
-    width: "100%",
-  },
   instructionsText: {
     color: "white",
     fontSize: 18,
     marginBottom: 12,
-    textAlign: "left",
-  },
-  bold: {
-    fontWeight: "bold",
+    textAlign: "center",
   },
   startGameBtn: {
     backgroundColor: "#4CAF50",
@@ -527,82 +644,95 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginTop: 10,
   },
-  startGameText: {
-    color: "white",
-    fontSize: 20,
-    fontWeight: "bold",
-  },
+  startGameText: { color: "white", fontSize: 20, fontWeight: "bold" },
   pauseBox: {
     backgroundColor: "rgba(198, 198, 198, 0.4)",
     padding: 30,
     borderRadius: 25,
     width: 250,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 10,
   },
   pauseIcon: {
-    fontSize: 50,
+    fontSize: 40,
     marginBottom: 10,
   },
   pauseTitle: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: "bold",
     color: "#fff",
-    marginBottom: 25,
+    marginBottom: 10,
+    textShadowColor: "rgba(0, 0, 0, 0.8)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   pauseBtnStyled: {
-    backgroundColor: "#4caf50",
+    backgroundColor: "#4CAF50",
     paddingVertical: 12,
     paddingHorizontal: 25,
-    borderRadius: 15,
-    marginVertical: 10,
-    width: "85%",
+    borderRadius: 20,
+    marginVertical: 8,
+    width: "100%",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    shadowOffset: { width: 2, height: 2 },
   },
   pauseBtnText: {
-    color: "#fff",
+    color: "white",
     fontSize: 18,
     fontWeight: "bold",
   },
   modalBox: {
-    backgroundColor: "#333",
-    padding: 20,
-    borderRadius: 15,
-    width: 280,
+    backgroundColor: "rgba(45, 45, 45, 0.95)",
+    padding: 30,
+    borderRadius: 25,
+    width: "90%",
+    maxWidth: 350,
     alignItems: "center",
   },
   modalTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "bold",
-    color: "#fff",
+    color: "#FFC107",
+    marginBottom: 15,
+  },
+  gameOverText: {
+    color: "white",
+    fontSize: 18,
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  practiceText: {
+    color: "#FFC107",
+    fontSize: 16,
     marginBottom: 20,
+    textAlign: "center",
+    fontStyle: "italic",
   },
   modalBtn: {
-    backgroundColor: "#4caf50",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
+    backgroundColor: "#4CAF50",
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    borderRadius: 20,
     marginVertical: 8,
-    width: "80%",
+    width: "100%",
     alignItems: "center",
   },
-  modalBtnText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+  modalBtnText: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
   countdownOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.7)",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
   },
   countdownText: {
-    fontSize: 80,
+    fontSize: 100,
+    color: "#fff",
     fontWeight: "bold",
-    color: "white",
   },
 });

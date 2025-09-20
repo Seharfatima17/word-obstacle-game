@@ -1,6 +1,5 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ImageBackground, Dimensions, Animated, Easing } from 'react-native';
-import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
@@ -9,7 +8,6 @@ const { width, height } = Dimensions.get('window');
 const backgroundImage = { uri: 'https://cdn.esahubble.org/archives/images/wallpaper2/heic1509a.jpg' };
 
 export default function Homescreen({ navigation }) {
-  const [sound, setSound] = React.useState();
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
   const slideAnim = React.useRef(new Animated.Value(100)).current;
   const scaleAnim = React.useRef(new Animated.Value(0.8)).current;
@@ -37,28 +35,7 @@ export default function Homescreen({ navigation }) {
     ]).start();
   }, [fadeAnim, slideAnim, scaleAnim]);
 
-  async function playButtonSound() {
-    try {
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: 'https://assets.mixkit.co/sfx/preview/mixkit-select-click-1109.mp3' }
-      );
-      setSound(sound);
-      await sound.playAsync();
-    } catch (error) {
-      console.log('Error playing sound:', error);
-    }
-  }
-
-  React.useEffect(() => {
-    return sound
-      ? () => {
-          sound.unloadAsync();
-        }
-      : undefined;
-  }, [sound]);
-
   const handlePlayGame = () => {
-    playButtonSound();
     navigation.navigate('Game');
   };
 
@@ -148,7 +125,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     marginVertical: 12,
     minWidth: 250,
-    shadowColor: '#000',
+    shadowColor: 'rgba(0, 0, 0, 0.3)',
     shadowOffset: {
       width: 0,
       height: 4,
