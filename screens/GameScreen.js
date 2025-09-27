@@ -1,4 +1,3 @@
-// screens/GameScreen.js
 import React from 'react';
 import { 
   StyleSheet, 
@@ -11,6 +10,7 @@ import {
   Animated
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { playBackgroundMusic, playTapSound } from './SoundManager'; // <-- Adjust path if needed
 
 const { width } = Dimensions.get('window');
 
@@ -32,6 +32,9 @@ export default function GameScreen({ navigation }) {
   const scaleAnim = React.useRef(new Animated.Value(0.9)).current;
 
   React.useEffect(() => {
+    // Ensure background music is playing when this screen mounts
+    playBackgroundMusic();
+
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -47,7 +50,13 @@ export default function GameScreen({ navigation }) {
     ]).start();
   }, []);
 
-  const handleLevelPress = (level) => {
+  const handleBack = async () => {
+    await playTapSound();
+    navigation.navigate('Home');
+  };
+
+  const handleLevelPress = async (level) => {
+    await playTapSound();
     switch(level.id) {
       case 1: 
         navigation.navigate("BeginnerScreen", { level: "Beginner" }); 
@@ -84,7 +93,7 @@ export default function GameScreen({ navigation }) {
           <View style={styles.header}>
             <TouchableOpacity 
               style={styles.backButton}
-              onPress={() => navigation.navigate('Home')}
+              onPress={handleBack}
             >
               <Ionicons name="arrow-back" size={28} color="white" />
             </TouchableOpacity>

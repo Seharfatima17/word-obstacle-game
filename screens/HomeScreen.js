@@ -1,10 +1,11 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ImageBackground, Dimensions, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { playBackgroundMusic, playTapSound } from './SoundManager'; // <-- Add this import (path adjust as per your folder)
 
 const { width, height } = Dimensions.get('window');
 
-// Background image - changed to a more game-appropriate image
+// Background image
 const backgroundImage = { uri: 'https://cdn.esahubble.org/archives/images/wallpaper2/heic1509a.jpg' };
 
 export default function Homescreen({ navigation }) {
@@ -13,7 +14,10 @@ export default function Homescreen({ navigation }) {
   const scaleAnim = React.useRef(new Animated.Value(0.8)).current;
 
   React.useEffect(() => {
-    // Animation sequences
+    // Start background music (runs only once)
+    playBackgroundMusic();
+
+    // Animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -35,8 +39,9 @@ export default function Homescreen({ navigation }) {
     ]).start();
   }, [fadeAnim, slideAnim, scaleAnim]);
 
-  const handlePlayGame = () => {
-    navigation.navigate('Game');
+  const handlePlayGame = async () => {
+    await playTapSound();              // <-- Play tap sound on button press
+    navigation.navigate('Game');       // Navigate after sound
   };
 
   return (
@@ -126,10 +131,7 @@ const styles = StyleSheet.create({
     marginVertical: 12,
     minWidth: 250,
     shadowColor: 'rgba(0, 0, 0, 0.3)',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.32,
     shadowRadius: 5.46,
     elevation: 9,

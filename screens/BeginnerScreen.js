@@ -9,17 +9,19 @@ import {
   Image,
   Modal,
 } from "react-native";
-//import { saveScoreToFirebase } from './firebaseHelper';
-
-// Naya import
-import { saveScoreToFirebase, storeGameScore } from '../firebase/FirebaseHelper';
 import { useNavigation } from "@react-navigation/native";
-//import { saveScoreToFirebase } from "../firebase/FirebaseHelper";
+import { saveScoreToFirebase, storeGameScore } from "../firebase/FirebaseHelper";
+
+// ✅ NEW IMPORTS for sound
+import {
+  playBackgroundMusic,
+  stopBackgroundMusic,
+  playTapSound,
+} from "./SoundManager";
 
 const { width, height } = Dimensions.get("window");
 const LANES = [width * 0.2, width * 0.5, width * 0.8];
 
-// Beginner Level Words
 const WORDS = [
   { word: "cat", isCorrect: true },
   { word: "sit", isCorrect: true },
@@ -61,29 +63,24 @@ export default function BeginnerVowelGame() {
   const [gameStarted, setGameStarted] = useState(false);
   const [gameCompleted, setGameCompleted] = useState(false);
 
-  // ✅ Track correct/incorrect selections
   const [shortWordsCaught, setShortWordsCaught] = useState(0);
   const [longWordsCaught, setLongWordsCaught] = useState(0);
 
-  // Save score only when the game truly ends
+  // ✅ Play/stop background music when screen mounts/unmounts
+  useEffect(() => {
+    playBackgroundMusic();
+    return () => {
+      stopBackgroundMusic();
+    };
+  }, []);
+
   useEffect(() => {
     if (gameCompleted && isGameOver && !scoreSaved) {
-      // ✅ Game name aur level ke saath save karein
       saveScoreToFirebase(score, "beginner")
         .then(() => setScoreSaved(true))
         .catch((err) => console.error("Score save error:", err));
-      
-      // ✅ Alternative: storeGameScore use karna hai toh
-      // storeGameScore("vowels", "beginner", {
-      //   score: score,
-      //   totalQuestions: shortWordsCaught + longWordsCaught,
-      //   correctAnswers: shortWordsCaught,
-      //   wrongAnswers: longWordsCaught
-      // })
-      // .then(() => setScoreSaved(true))
-      // .catch((err) => console.error("Score save error:", err));
     }
-  }, [gameCompleted, isGameOver, scoreSaved, score, shortWordsCaught, longWordsCaught]);
+  }, [gameCompleted, isGameOver, scoreSaved, score]);
 
   // Spawn falling words
   useEffect(() => {
@@ -97,7 +94,6 @@ export default function BeginnerVowelGame() {
       const randomIndex = Math.floor(Math.random() * availableWords.length);
       const chosenWord = availableWords[randomIndex];
       const wordIndex = WORDS.findIndex((w) => w.word === chosenWord.word);
-
       setUsedWordIds((prev) => new Set([...prev, wordIndex]));
       const randomLane = Math.floor(Math.random() * 3);
       setFallingWords((prev) => [
@@ -108,7 +104,7 @@ export default function BeginnerVowelGame() {
     return () => clearInterval(interval);
   }, [gameStarted, isPaused, isGameOver, usedWordIds]);
 
-  // Move words down
+  // Move words
   useEffect(() => {
     if (!gameStarted || isPaused || isGameOver) return;
     const loop = setInterval(() => {
@@ -156,10 +152,9 @@ export default function BeginnerVowelGame() {
     }, 600);
   };
 
-  // Timer logic - Fixed to only end game when timeLeft reaches 0
+  // Timer
   useEffect(() => {
     if (!gameStarted || isPaused || isGameOver) return;
-    
     const timer = setInterval(() => {
       setTimeLeft((prevTime) => {
         if (prevTime <= 1) {
@@ -171,16 +166,17 @@ export default function BeginnerVowelGame() {
         return prevTime - 1;
       });
     }, 1000);
-    
     return () => clearInterval(timer);
   }, [gameStarted, isPaused, isGameOver]);
 
   const handlePause = () => {
+    playTapSound();
     setIsPaused(true);
     setShowPauseMenu(true);
   };
 
   const handleResume = () => {
+    playTapSound();
     setShowPauseMenu(false);
     let count = 3;
     setCountdown(count);
@@ -195,6 +191,7 @@ export default function BeginnerVowelGame() {
   };
 
   const handlePlayAgain = () => {
+    playTapSound();
     setIsGameOver(false);
     setScore(0);
     setTimeLeft(60);
@@ -208,6 +205,7 @@ export default function BeginnerVowelGame() {
   };
 
   const handleBack = () => {
+    playTapSound();
     setIsGameOver(false);
     setGameStarted(false);
     setGameCompleted(false);
@@ -223,11 +221,11 @@ export default function BeginnerVowelGame() {
   };
 
   const startGame = () => {
+    playTapSound();
     setInstructionsVisible(false);
     setGameStarted(true);
   };
 
-  // ✅ Practice suggestion logic
   const practiceMessage =
     longWordsCaught > shortWordsCaught / 2
       ? "⚠️ Needs more practice with short vowels!"
@@ -245,17 +243,19 @@ export default function BeginnerVowelGame() {
       <Modal visible={instructionsVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.instructionsBox}>
-            <TouchableOpacity 
-              style={styles.backButton} 
-              onPress={() => navigation.navigate("Game")}
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => {
+                playTapSound();
+                navigation.navigate("Game");
+              }}
             >
               <Text style={styles.backButtonText}>⬅️</Text>
             </TouchableOpacity>
-            
-            {/* ✅ Game Name aur Level Display */}
+
             <Text style={styles.gameName}>WORD OBSTACLE GAME</Text>
             <Text style={styles.levelBadge}>BEGINNER LEVEL</Text>
-            
+
             <Text style={styles.instructionsSubtitle}>Short Vowel Sounds</Text>
             <Text style={styles.instructionsText}>
               🎯 Goal: Catch words with SHORT vowel sounds
@@ -276,7 +276,6 @@ export default function BeginnerVowelGame() {
         </View>
       </Modal>
 
-      {/* ✅ Game Name aur Level Display During Gameplay */}
       {gameStarted && !isGameOver && (
         <View style={styles.gameHeader}>
           <Text style={styles.gameHeaderTitle}>WORD OBSTACLE GAME</Text>
@@ -298,7 +297,7 @@ export default function BeginnerVowelGame() {
           </View>
           <TouchableOpacity style={styles.pauseBtn} onPress={handlePause}>
             <Text style={{ fontSize: 26, color: "#fff" }}>⏸️</Text>
-            </TouchableOpacity>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -316,16 +315,11 @@ export default function BeginnerVowelGame() {
               alignItems: "center",
             }}
           >
-            
-           <Image
-  source={require('../assets/a.png')}   // ✅ correct way
-  style={styles.asteroid}
-/>
+            <Image source={require("../assets/a.png")} style={styles.asteroid} />
             <Text style={styles.wordText}>{word.word}</Text>
           </View>
         ))}
 
-      {/* Floating score text */}
       {floatingTexts.map((t) => (
         <Text
           key={t.id}
@@ -354,13 +348,19 @@ export default function BeginnerVowelGame() {
       {gameStarted && !isPaused && !isGameOver && (
         <View style={styles.controls}>
           <TouchableOpacity
-            onPress={() => setPlayerLane(Math.max(0, playerLane - 1))}
+            onPress={() => {
+              playTapSound();
+              setPlayerLane(Math.max(0, playerLane - 1));
+            }}
             style={[styles.btn, { backgroundColor: "#ff9800" }]}
           >
             <Text style={styles.btnText}>⬅️</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => setPlayerLane(Math.min(2, playerLane + 1))}
+            onPress={() => {
+              playTapSound();
+              setPlayerLane(Math.min(2, playerLane + 1));
+            }}
             style={[styles.btn, { backgroundColor: "#4caf50" }]}
           >
             <Text style={styles.btnText}>➡️</Text>
@@ -374,12 +374,13 @@ export default function BeginnerVowelGame() {
           <View style={styles.pauseBox}>
             <Text style={styles.pauseIcon}>⏸️</Text>
             <Text style={styles.pauseTitle}>Game Paused</Text>
-            
-            {/* ✅ Game Name aur Level Display in Pause Menu */}
             <Text style={styles.pauseGameName}>WORD OBSTACLE GAME</Text>
             <Text style={styles.pauseLevel}>Beginner Level</Text>
-            
-            <TouchableOpacity style={styles.pauseBtnStyled} onPress={handleResume}>
+
+            <TouchableOpacity
+              style={styles.pauseBtnStyled}
+              onPress={handleResume}
+            >
               <Text style={styles.pauseBtnText}>▶️ Resume</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -392,15 +393,12 @@ export default function BeginnerVowelGame() {
         </View>
       </Modal>
 
-      {/* ✅ Game Over Screen - Only shows when time is up */}
+      {/* Game Over */}
       <Modal visible={isGameOver && timeLeft === 0} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
-            
-            {/* ✅ Game Name aur Level Display in Game Over */}
             <Text style={styles.gameName}>WORD OBSTACLE GAME</Text>
             <Text style={styles.levelBadge}>BEGINNER LEVEL</Text>
-            
             <Text style={styles.modalTitle}>⏰ Time's Up!</Text>
             <Text style={styles.gameOverText}>Score: {score}</Text>
             <Text style={styles.gameOverText}>
@@ -424,7 +422,6 @@ export default function BeginnerVowelGame() {
         </View>
       </Modal>
 
-      {/* Countdown */}
       {countdown && (
         <View style={styles.countdownOverlay}>
           <Text style={styles.countdownText}>{countdown}</Text>

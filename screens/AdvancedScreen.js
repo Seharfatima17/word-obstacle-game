@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { saveScoreToFirebase, storeGameScore } from "../firebase/FirebaseHelper";
+import { playBackgroundMusic, stopBackgroundMusic, playTapSound } from "./SoundManager"; // ✅ SOUND IMPORT
 
 const { width, height } = Dimensions.get("window");
 const LANES = [width * 0.2, width * 0.5, width * 0.8];
@@ -62,6 +63,14 @@ export default function AdvancedVowelGame() {
 
   const [shortWordsCaught, setShortWordsCaught] = useState(0); // ✅ correct = SHORT A, I, U
   const [longWordsCaught, setLongWordsCaught] = useState(0);   // ✅ wrong = LONG vowels
+
+  // ✅ Start background music when component mounts
+  useEffect(() => {
+    playBackgroundMusic();
+    return () => {
+      stopBackgroundMusic(); // stop music when leaving this screen
+    };
+  }, []);
 
   // ✅ Save score in Firebase when game ends
   useEffect(() => {
@@ -162,12 +171,15 @@ export default function AdvancedVowelGame() {
     return () => clearInterval(timer);
   }, [gameStarted, isPaused, isGameOver]);
 
-  const handlePause = () => {
+  // ✅ Button handlers with tap sound
+  const handlePause = async () => {
+    await playTapSound();
     setIsPaused(true);
     setShowPauseMenu(true);
   };
 
-  const handleResume = () => {
+  const handleResume = async () => {
+    await playTapSound();
     setShowPauseMenu(false);
     let count = 3;
     setCountdown(count);
@@ -181,7 +193,8 @@ export default function AdvancedVowelGame() {
     }, 1000);
   };
 
-  const handlePlayAgain = () => {
+  const handlePlayAgain = async () => {
+    await playTapSound();
     setIsGameOver(false);
     setScore(0);
     setTimeLeft(60);
@@ -194,7 +207,8 @@ export default function AdvancedVowelGame() {
     setGameCompleted(false);
   };
 
-  const handleBack = () => {
+  const handleBack = async () => {
+    await playTapSound();
     setIsGameOver(false);
     setGameStarted(false);
     setGameCompleted(false);
@@ -209,7 +223,8 @@ export default function AdvancedVowelGame() {
     navigation.navigate("Game");
   };
 
-  const startGame = () => {
+  const startGame = async () => {
+    await playTapSound();
     setInstructionsVisible(false);
     setGameStarted(true);
   };
@@ -233,7 +248,10 @@ export default function AdvancedVowelGame() {
           <View style={styles.instructionsBox}>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => navigation.navigate("Game")}
+              onPress={async () => {
+                await playTapSound();
+                navigation.navigate("Game");
+              }}
             >
               <Text style={styles.backButtonText}>⬅️</Text>
             </TouchableOpacity>
@@ -338,13 +356,19 @@ export default function AdvancedVowelGame() {
       {gameStarted && !isPaused && !isGameOver && (
         <View style={styles.controls}>
           <TouchableOpacity
-            onPress={() => setPlayerLane(Math.max(0, playerLane - 1))}
+            onPress={async () => {
+              await playTapSound();
+              setPlayerLane(Math.max(0, playerLane - 1));
+            }}
             style={[styles.btn, { backgroundColor: "#ff9800" }]}
           >
             <Text style={styles.btnText}>⬅️</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => setPlayerLane(Math.min(2, playerLane + 1))}
+            onPress={async () => {
+              await playTapSound();
+              setPlayerLane(Math.min(2, playerLane + 1));
+            }}
             style={[styles.btn, { backgroundColor: "#4caf50" }]}
           >
             <Text style={styles.btnText}>➡️</Text>
@@ -411,10 +435,10 @@ export default function AdvancedVowelGame() {
         </View>
       )}
     </ImageBackground>
-      );
-    }
-    
-    const styles = StyleSheet.create({
+  );
+}
+
+const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
   gameHeader: {
     position: "absolute",

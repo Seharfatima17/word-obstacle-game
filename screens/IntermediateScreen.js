@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { saveScoreToFirebase, storeGameScore } from "../firebase/FirebaseHelper";
+import { playBackgroundMusic, stopBackgroundMusic, playTapSound } from "./SoundManager"; // ✅ SOUND IMPORT
 
 const { width, height } = Dimensions.get("window");
 const LANES = [width * 0.2, width * 0.5, width * 0.8];
@@ -22,7 +23,6 @@ const WORDS = [
   { word: "team", isCorrect: true }, { word: "rain", isCorrect: true },
   { word: "boat", isCorrect: true }, { word: "seed", isCorrect: true },
   { word: "bike", isCorrect: true }, { word: "mule", isCorrect: true },
-
   { word: "cat", isCorrect: false }, { word: "sit", isCorrect: false },
   { word: "pot", isCorrect: false }, { word: "cup", isCorrect: false },
   { word: "bed", isCorrect: false }, { word: "bag", isCorrect: false },
@@ -46,9 +46,16 @@ export default function IntermediateVowelGame() {
   const [instructionsVisible, setInstructionsVisible] = useState(true);
   const [gameStarted, setGameStarted] = useState(false);
   const [gameCompleted, setGameCompleted] = useState(false);
+  const [longWordsCaught, setLongWordsCaught] = useState(0);
+  const [shortWordsCaught, setShortWordsCaught] = useState(0);
 
-  const [longWordsCaught, setLongWordsCaught] = useState(0);   // ✅ correct = LONG
-  const [shortWordsCaught, setShortWordsCaught] = useState(0); // ✅ wrong  = SHORT
+  // ✅ Start background music when component mounts
+  useEffect(() => {
+    playBackgroundMusic();
+    return () => {
+      stopBackgroundMusic(); // stop music when leaving this screen
+    };
+  }, []);
 
   // ✅ Save score in Firebase when game ends
   useEffect(() => {
@@ -56,10 +63,8 @@ export default function IntermediateVowelGame() {
       saveScoreToFirebase(score, "intermediate")
         .then(() => setScoreSaved(true))
         .catch((err) => console.error("Score save error:", err));
-      // Optional alternative:
-      // storeGameScore("vowels", "intermediate", {...})
     }
-  }, [gameCompleted, isGameOver, scoreSaved, score, longWordsCaught, shortWordsCaught]);
+  }, [gameCompleted, isGameOver, scoreSaved, score]);
 
   // ✅ Spawn falling words
   useEffect(() => {
@@ -73,14 +78,13 @@ export default function IntermediateVowelGame() {
       const randomIndex = Math.floor(Math.random() * availableWords.length);
       const chosenWord = availableWords[randomIndex];
       const wordIndex = WORDS.findIndex((w) => w.word === chosenWord.word);
-
       setUsedWordIds((prev) => new Set([...prev, wordIndex]));
       const randomLane = Math.floor(Math.random() * 3);
       setFallingWords((prev) => [
         ...prev,
         { ...chosenWord, lane: randomLane, y: 0, id: Date.now(), hit: false },
       ]);
-    }, 1300); // ⚡ slightly faster than beginner
+    }, 1300);
     return () => clearInterval(interval);
   }, [gameStarted, isPaused, isGameOver, usedWordIds]);
 
@@ -90,7 +94,7 @@ export default function IntermediateVowelGame() {
     const loop = setInterval(() => {
       setFallingWords((prev) =>
         prev
-          .map((w) => ({ ...w, y: w.y + 9 })) // ⚡ slightly faster fall
+          .map((w) => ({ ...w, y: w.y + 9 }))
           .filter((w) => w.y < height - 150)
       );
     }, 110);
@@ -123,10 +127,7 @@ export default function IntermediateVowelGame() {
 
   const showFloatingText = (text, color, lane) => {
     const id = Date.now();
-    setFloatingTexts((prev) => [
-      ...prev,
-      { id, text, color, lane, y: height - 220 },
-    ]);
+    setFloatingTexts((prev) => [...prev, { id, text, color, lane, y: height - 220 }]);
     setTimeout(() => {
       setFloatingTexts((prev) => prev.filter((t) => t.id !== id));
     }, 600);
@@ -149,12 +150,15 @@ export default function IntermediateVowelGame() {
     return () => clearInterval(timer);
   }, [gameStarted, isPaused, isGameOver]);
 
-  const handlePause = () => {
+  // ✅ Button handlers with tap sound
+  const handlePause = async () => {
+    await playTapSound();
     setIsPaused(true);
     setShowPauseMenu(true);
   };
 
-  const handleResume = () => {
+  const handleResume = async () => {
+    await playTapSound();
     setShowPauseMenu(false);
     let count = 3;
     setCountdown(count);
@@ -168,7 +172,8 @@ export default function IntermediateVowelGame() {
     }, 1000);
   };
 
-  const handlePlayAgain = () => {
+  const handlePlayAgain = async () => {
+    await playTapSound();
     setIsGameOver(false);
     setScore(0);
     setTimeLeft(60);
@@ -181,7 +186,8 @@ export default function IntermediateVowelGame() {
     setGameCompleted(false);
   };
 
-  const handleBack = () => {
+  const handleBack = async () => {
+    await playTapSound();
     setIsGameOver(false);
     setGameStarted(false);
     setGameCompleted(false);
@@ -196,7 +202,8 @@ export default function IntermediateVowelGame() {
     navigation.navigate("Game");
   };
 
-  const startGame = () => {
+  const startGame = async () => {
+    await playTapSound();
     setInstructionsVisible(false);
     setGameStarted(true);
   };
@@ -208,9 +215,7 @@ export default function IntermediateVowelGame() {
 
   return (
     <ImageBackground
-      source={{
-        uri: "https://i.pinimg.com/736x/38/da/65/38da65be8771110eb943749dbfcec83e.jpg",
-      }}
+      source={{ uri: "https://i.pinimg.com/736x/38/da/65/38da65be8771110eb943749dbfcec83e.jpg" }}
       style={styles.container}
       resizeMode="cover"
     >
@@ -220,27 +225,20 @@ export default function IntermediateVowelGame() {
           <View style={styles.instructionsBox}>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => navigation.navigate("Game")}
+              onPress={async () => {
+                await playTapSound();
+                navigation.navigate("Game");
+              }}
             >
               <Text style={styles.backButtonText}>⬅️</Text>
             </TouchableOpacity>
-
             <Text style={styles.gameName}>WORD OBSTACLE GAME</Text>
             <Text style={styles.levelBadge}>INTERMEDIATE LEVEL</Text>
-
             <Text style={styles.instructionsSubtitle}>Long Vowel Sounds</Text>
-            <Text style={styles.instructionsText}>
-              🎯 Goal: Catch words with LONG vowel sounds
-            </Text>
-            <Text style={styles.instructionsText}>
-              ✅ Correct: cake, kite, rope, cube, team
-            </Text>
-            <Text style={styles.instructionsText}>
-              ❌ Avoid: cat, sit, pot, cup, bed
-            </Text>
-            <Text style={styles.instructionsText}>
-              ⭐ +5 for correct, -5 for wrong
-            </Text>
+            <Text style={styles.instructionsText}>🎯 Goal: Catch words with LONG vowel sounds</Text>
+            <Text style={styles.instructionsText}>✅ Correct: cake, kite, rope, cube, team</Text>
+            <Text style={styles.instructionsText}>❌ Avoid: cat, sit, pot, cup, bed</Text>
+            <Text style={styles.instructionsText}>⭐ +5 for correct, -5 for wrong</Text>
             <TouchableOpacity style={styles.startGameBtn} onPress={startGame}>
               <Text style={styles.startGameText}>Start Game</Text>
             </TouchableOpacity>
@@ -275,9 +273,7 @@ export default function IntermediateVowelGame() {
       )}
 
       {/* Falling Words */}
-      {gameStarted &&
-        !isPaused &&
-        !isGameOver &&
+      {gameStarted && !isPaused && !isGameOver &&
         fallingWords.map((word) => (
           <View
             key={word.id}
@@ -288,10 +284,7 @@ export default function IntermediateVowelGame() {
               alignItems: "center",
             }}
           >
-            <Image
-              source={require("../assets/a.png")}
-              style={styles.asteroid}
-            />
+            <Image source={require("../assets/a.png")} style={styles.asteroid} />
             <Text style={styles.wordText}>{word.word}</Text>
           </View>
         ))}
@@ -325,13 +318,19 @@ export default function IntermediateVowelGame() {
       {gameStarted && !isPaused && !isGameOver && (
         <View style={styles.controls}>
           <TouchableOpacity
-            onPress={() => setPlayerLane(Math.max(0, playerLane - 1))}
+            onPress={async () => {
+              await playTapSound();
+              setPlayerLane(Math.max(0, playerLane - 1));
+            }}
             style={[styles.btn, { backgroundColor: "#ff9800" }]}
           >
             <Text style={styles.btnText}>⬅️</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => setPlayerLane(Math.min(2, playerLane + 1))}
+            onPress={async () => {
+              await playTapSound();
+              setPlayerLane(Math.min(2, playerLane + 1));
+            }}
             style={[styles.btn, { backgroundColor: "#4caf50" }]}
           >
             <Text style={styles.btnText}>➡️</Text>
@@ -347,7 +346,6 @@ export default function IntermediateVowelGame() {
             <Text style={styles.pauseTitle}>Game Paused</Text>
             <Text style={styles.pauseGameName}>WORD OBSTACLE GAME</Text>
             <Text style={styles.pauseLevel}>Intermediate Level</Text>
-
             <TouchableOpacity style={styles.pauseBtnStyled} onPress={handleResume}>
               <Text style={styles.pauseBtnText}>▶️ Resume</Text>
             </TouchableOpacity>
@@ -367,17 +365,11 @@ export default function IntermediateVowelGame() {
           <View style={styles.modalBox}>
             <Text style={styles.gameName}>WORD OBSTACLE GAME</Text>
             <Text style={styles.levelBadge}>INTERMEDIATE LEVEL</Text>
-
             <Text style={styles.modalTitle}>⏰ Time's Up!</Text>
             <Text style={styles.gameOverText}>Score: {score}</Text>
-            <Text style={styles.gameOverText}>
-              Long Vowel Words: {longWordsCaught}
-            </Text>
-            <Text style={styles.gameOverText}>
-              Short Vowel Words: {shortWordsCaught}
-            </Text>
+            <Text style={styles.gameOverText}>Long Vowel Words: {longWordsCaught}</Text>
+            <Text style={styles.gameOverText}>Short Vowel Words: {shortWordsCaught}</Text>
             <Text style={styles.practiceText}>{practiceMessage}</Text>
-
             <TouchableOpacity style={styles.modalBtn} onPress={handlePlayAgain}>
               <Text style={styles.modalBtnText}>Play Again</Text>
             </TouchableOpacity>
